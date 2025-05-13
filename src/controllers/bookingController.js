@@ -106,9 +106,9 @@ exports.bookSlot = async (req, res) => {
             const customer = await User.findById(userId);
             console.log(customer)
             const subject = "Booking Status "
-            const content = `Please use this Booking Id for future reference, <span style="color:tomato; font-size:25px; letter-spacing:2px;">${booking.bookingId}</span>. ${(booking.selectedServices === "Jathagam" || booking.selectedServices === "Prasanam")
-                ? "Your booking slots has been confirmed "
-                : ""
+            const content = `Please use this Booking ID for future reference: ${booking.bookingId}. ${(booking.selectedServices === "Jathagam" || booking.selectedServices === "Prasanam")
+                    ? "Your booking slot has been confirmed."
+                    : "Thank you for your booking. One of our team members will contact you shortly with further details. Please note that your booking is subject to confirmation upon review and approval by our team. We appreciate your patience and understanding."
                 }`.trim();
 
             await sendEmail(customer.email, subject, content);
@@ -222,7 +222,7 @@ exports.updateUserBookings = async (req, res) => {
             const customer = await User.findById(booking.userId);
             console.log(customer)
             const subject = "Booking Status "
-            const content = `Please use this Booking Id for future reference, <span style="color:tomato; font-size:25px; letter-spacing:2px;">${booking.bookingId}</span>. ${booking.bookingStatus === "Confirmed" ? "Your booking slots has been confirmed " : "Your booking slots has been cancelled"}`.trim();
+            const content = `Please use this Booking ID for future reference, <span style="color:tomato; font-size:25px; letter-spacing:2px;">${booking.bookingId}</span>. ${booking.bookingStatus === "Confirmed" ? "Your booking slot has been confirmed " : "Your booking slot has been cancelled. If you have any questions or need clarification, please contact our team"}`.trim();
             await sendEmail(customer.email, subject, content);
             return res.status(200).json({
                 message: "Booking status is updated successfully",

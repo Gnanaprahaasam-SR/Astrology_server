@@ -11,7 +11,7 @@ const cookieParser = require("cookie-parser");
 app.use(express.json({ limit: "50mb", extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-    origin: ['http://localhost:5173', '*'],
+    origin: [`${process.env.CLIENT}`, '*'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE',]
@@ -42,7 +42,7 @@ app.use("/api", bookingServiceSlot);
 
 // Product List
 const productList = require("./routers/productRequirementRouter");
-app.use("/api",productList);
+app.use("/api", productList);
 
 // Error handling
 app.use((err, req, res, next) => {

@@ -28,6 +28,41 @@ const createToken = async (data) => {
     }
 }
 
+const sendForgotPasswordEmail = async (email, subject, content, duration) => {
+    try {
+        const transporter = nodemailer.createTransport({
+            host: "smtp.gmail.com",
+            port: 465, // or 587, depending on your provider
+            service: "gmail", // true for 465, false for 587
+            secure: true,
+            auth: {
+                user: process.env.AUTH_EMAIL,
+                pass: process.env.EMAIL_PASS,
+            },
+        });
+
+        const mailOptions = {
+            from: process.env.AUTH_EMAIL,
+            to: email,
+            subject,
+            html: `
+            <h4>Dear Customer,</h4>
+
+            <p>Please click the link below to update the password. This link will be valid for the next ${duration} minute(s).</p>
+
+            <a href="${content}" style="text-decoration: none;"> Reset Password </a>
+
+            <p>Best regards,<br/>Mahalakshmi Astrology Team</p>
+            `
+        };
+        const mailStatus = await transporter.sendMail(mailOptions);
+        return mailStatus;
+    } catch (error) {
+        console.error("Email send error:", error);
+        return false;
+    }
+
+}
 
 const sendOtpEmail = async (email, duration, subject, content) => {
     try {
@@ -216,6 +251,54 @@ exports.userVerification = async (req, res) => {
     }
 };
 
+exports.sendForgotPasswordURL = async (req, res) => {
+
+    try {
+        const { email } = req.body;
+        console.log(email);
+
+        const existingUser = await User.findOne({ email });
+        if (!existingUser) {
+            return res.status(404).json({ message: "Please given correct Email Id." });
+        }
+        const duration = 5;
+        const subject = 'Regarding Password Reset Request'
+        const content = `${process.env.SERVER}/api/checkUser/${encodeURIComponent(existingUser.email)}/${Date.now() + duration * 60 * 1000}`
+
+        const mailStatus = await sendForgotPasswordEmail(existingUser.email, subject, content, duration);
+
+        if (mailStatus) {
+            return res.status(200).json({ status: 200, message: "Reset password link sent successfully. Check you mail!" });
+        } else {
+            return res.status(424).json({ status: 424, message: "Failed to send email." });
+        }
+
+    } catch (error) {
+        console.error("Error in forgetPassword:", error);
+        res.status(500).json({ status: 500, message: "Internal Server Error" });
+    }
+};
+
+exports.redirectClient = async (req, res) => {
+    try {
+        const { email, time } = req.params; // Use query params
+
+        if (!email || !time) {
+            return res.status(400).send("Invalid request.");
+        }
+
+        if (parseInt(time) >= Date.now()) {
+            return res.redirect(`${process.env.CLIENT}/ForgotPassword/${encodeURIComponent(email)}`);
+        } else {
+            return res.redirect(`${process.env.CLIENT}/TokenExpired`);
+        }
+
+    } catch (error) {
+        console.error("Error in redirectClient:", error);
+        res.status(500).send("Internal Server Error.");
+    }
+};
+
 exports.forgetPassword = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -256,7 +339,7 @@ exports.userLogin = async (req, res) => {
         let existingUser = await User.findOne({ email, isVerified: true });
 
         if (!existingUser) {
-            return res.status(404).json({ message: "Please create an account" });
+            return res.status(404).json({ message: "Welcome! Please sign Up to create your account before sign In." });
         }
         const passwordmatch = await bcrypt.compare(password, existingUser.password)
         console.log(passwordmatch)

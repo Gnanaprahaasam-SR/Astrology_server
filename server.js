@@ -5,7 +5,7 @@ dotenv.config();
 const app = require("./src/index");
 const mongooes = require('mongoose');
 
-mongooes.connect(process.env.DB_URL_PRO,{family:4})
+mongooes.connect(process.env.DB_URL_DEV,{family:4})
     .then(() => {
         console.log("Connected to MongoDB");
         app.listen(process.env.PORT, () => {

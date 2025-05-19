@@ -10,6 +10,8 @@ router.post('/userVerification', userController.userVerification);
 router.post('/resendOTP', userController.resendOTP);
 router.get('/logout', userController.userLogout);
 router.get('/sessionVerification', userController.userLogout);
-router.put('/resetPassword', userController.forgetPassword);
+router.put('/updatePassword', userController.forgetPassword);
+router.post('/forgotPassword', userController.sendForgotPasswordURL)
+router.get("/checkUser/:email/:time", userController.redirectClient)
 
 module.exports = router;

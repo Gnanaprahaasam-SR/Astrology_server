@@ -8,14 +8,27 @@ const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 
 
-app.use(express.json({ limit: "50mb", extended: true }));
-app.use(express.urlencoded({ extended: true }));
-app.use(cors({
-    origin: [`${process.env.CLIENT}`, '*'],
+const allowedOrigins = [process.env.CLIENT, process.env.CLIENT2];
+
+const CorsOrigin ={
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        } else {
+            return callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE',]
-}))
+}
+app.use(cors(CorsOrigin));
+app.options('*', cors(corsOptions));
+
+app.use(express.json({ limit: "50mb", extended: true }));
+app.use(express.urlencoded({ extended: true }));
+
 
 app.use(helmet());
 app.use(morgan('dev'));

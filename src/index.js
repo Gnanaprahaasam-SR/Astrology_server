@@ -10,7 +10,7 @@ const cookieParser = require("cookie-parser");
 
 const allowedOrigins = [process.env.CLIENT, process.env.CLIENT2];
 
-const CorsOrigin ={
+const CorsOrigin = {
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) {
@@ -24,9 +24,9 @@ const CorsOrigin ={
     methods: ['GET', 'POST', 'PUT', 'DELETE',]
 }
 app.use(cors(CorsOrigin));
-app.options('*', cors(corsOptions));
+app.options('*', cors(CorsOrigin));
 
-app.use(express.json({ limit: "50mb", extended: true }));
+app.use(express.json({ limit: "5mb", extended: true }));
 app.use(express.urlencoded({ extended: true }));
 
 
@@ -56,6 +56,10 @@ app.use("/api", bookingServiceSlot);
 // Product List
 const productList = require("./routers/productRequirementRouter");
 app.use("/api", productList);
+
+// Block Slot
+const blockSlot = require("./routers/blockSlotRouter");
+app.use("/api", blockSlot);
 
 // Error handling
 app.use((err, req, res, next) => {

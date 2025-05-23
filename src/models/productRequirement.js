@@ -64,6 +64,7 @@ const productListSchema = new mongoose.Schema({
     }
 }, { collection: 'productlists' });
 
+productListSchema.index({ bookingId: 1 });
 const ProductList = mongoose.model('ProductList', productListSchema);
 
 module.exports = ProductList;

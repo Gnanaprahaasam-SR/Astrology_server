@@ -2,9 +2,9 @@
 
 const Booking = require("../models/booking");
 const moment = require('moment');
-const ProductList = require('../models/productRequirement');
 const User = require("../models/user");
 const nodemailer = require('nodemailer');
+const BlockedSlot = require("../models/blockSlot");
 
 
 function generateBookingId() {
@@ -57,7 +57,8 @@ exports.bookSlot = async (req, res) => {
         serviceType,
         mapLink,
         bookingStatus,
-        cost
+        cost,
+        document
     } = req.body;
     console.log(req.body)
 
@@ -67,10 +68,24 @@ exports.bookSlot = async (req, res) => {
         for (let slot of timeSlots) {
             const existingBooking = await Booking.findOne({
                 date,
-                "timeSlots.startTime": slot.startTime,
+                timeSlots: {
+                    $elemMatch: {
+                        startTime: { $lt: slot.endTime },
+                        endTime: { $gt: slot.startTime },
+                    },
+                },
+                bookingStatus: { $ne: "Cancelled" }
             });
 
-            if (existingBooking) {
+            const blockedSlot = await BlockedSlot.findOne({
+                fromDate: { $lte: date },
+                toDate: { $gte: date },
+                startTime: { $lt: slot.endTime },
+                endTime: { $gt: slot.startTime }
+            });
+
+
+            if (existingBooking || blockedSlot) {
                 return res.status(409).json({
                     message: `Slot ${slot.startTime} - ${slot.endTime} is already booked`,
                 });
@@ -100,15 +115,16 @@ exports.bookSlot = async (req, res) => {
             serviceType,
             bookingStatus,
             bookingId,
-            cost
+            cost,
+            document
         });
         if (booking) {
             const customer = await User.findById(userId);
             console.log(customer)
             const subject = "Booking Status "
-            const content = `Please use this Booking ID for future reference: ${booking.bookingId}. ${(booking.selectedServices === "Jathagam" || booking.selectedServices === "Prasanam")
-                    ? "Your booking slot has been confirmed."
-                    : "Thank you for your booking. One of our team members will contact you shortly with further details. Please note that your booking is subject to confirmation upon review and approval by our team. We appreciate your patience and understanding."
+            const content = `Please use this Booking ID for future reference: ${booking.bookingId}. ${((booking.selectedServices === "Jathagam" && booking.serviceType !== "horoscopeMatching") || booking.selectedServices === "Prasanam")
+                ? "Your booking slot has been confirmed."
+                : "Thank you for your booking. One of our team members will contact you shortly with further details. Please note that your booking is subject to confirmation upon review and approval by our team. We appreciate your patience and understanding."
                 }`.trim();
 
             await sendEmail(customer.email, subject, content);
@@ -116,6 +132,7 @@ exports.bookSlot = async (req, res) => {
         }
         else {
             console.log("failed to book");
+            return res.status(500).json({ message: "Failed to book slot" });
         }
     } catch (error) {
         res.status(500).json({ message: "Error booking slot", error });
@@ -160,6 +177,7 @@ exports.getAllUserBookings = async (req, res) => {
 };
 
 
+
 exports.updateUserBookings = async (req, res) => {
     const { id, timeSlots, bookingStatus } = req.body;
     console.log(req.body);
@@ -173,34 +191,45 @@ exports.updateUserBookings = async (req, res) => {
 
         // Only check for overlap if timeSlots are being updated
         if (timeSlots && timeSlots.length > 0) {
-            // Fetch all bookings for the same date and serviceType (excluding current booking)
+            // Fetch all active bookings on same date, excluding current one
             const existingBookings = await Booking.find({
                 date: booking.date,
-                bookingStatus: { $ne: "Cancelled" } // Optionally exclude cancelled
+                bookingStatus: { $ne: "Cancelled" },
+                bookingId: { $ne: id }
             });
 
-            // Flatten all existing time slots for these bookings
             const existingTimeSlots = existingBookings.flatMap(b => b.timeSlots || []);
+            // Fetch all blocked slots where the booking date falls within fromDate to toDate
+            const blockedSlots = await BlockedSlot.find({
+                fromDate: { $lte: booking.date },
+                toDate: { $gte: booking.date }
+            });
 
-            // Helper to convert "11:00 AM" to minutes since midnight
+            // Convert blockedSlots into time slot-like objects
+            const blockedTimeSlots = blockedSlots.map(slot => ({
+                startTime: slot.startTime,
+                endTime: slot.endTime
+            }));
+
             function timeToMinutes(timeStr) {
                 const m = moment(timeStr, ["h:mm A"]);
                 return m.hours() * 60 + m.minutes();
             }
+
+            const allUnavailableSlots = [...existingTimeSlots, ...blockedTimeSlots];
 
             // Check for overlap
             for (const newSlot of timeSlots) {
                 const newStart = timeToMinutes(newSlot.startTime);
                 const newEnd = timeToMinutes(newSlot.endTime);
 
-                for (const existSlot of existingTimeSlots) {
-                    const existStart = timeToMinutes(existSlot.startTime);
-                    const existEnd = timeToMinutes(existSlot.endTime);
+                for (const slot of allUnavailableSlots) {
+                    const existStart = timeToMinutes(slot.startTime);
+                    const existEnd = timeToMinutes(slot.endTime);
 
-                    // Overlap if newStart < existEnd && newEnd > existStart
                     if (newStart < existEnd && newEnd > existStart) {
                         return res.status(400).json({
-                            message: `Time slot ${newSlot.startTime} - ${newSlot.endTime} overlaps with existing slot ${existSlot.startTime} - ${existSlot.endTime}`
+                            message: `Time slot ${newSlot.startTime} - ${newSlot.endTime} overlaps with blocked or booked slot ${slot.startTime} - ${slot.endTime}`
                         });
                     }
                 }
@@ -208,7 +237,7 @@ exports.updateUserBookings = async (req, res) => {
         }
 
         // Build update object
-        let updateFields = {};
+        const updateFields = {};
         if (timeSlots) updateFields.timeSlots = timeSlots;
         if (bookingStatus) updateFields.bookingStatus = bookingStatus;
 
@@ -218,12 +247,22 @@ exports.updateUserBookings = async (req, res) => {
             updateFields,
             { new: true }
         );
+
         if (updateBooking) {
             const customer = await User.findById(booking.userId);
-            console.log(customer)
-            const subject = "Booking Status "
-            const content = `Please use this Booking ID for future reference, <span style="color:tomato; font-size:25px; letter-spacing:2px;">${booking.bookingId}</span>. ${booking.bookingStatus === "Confirmed" ? "Your booking slot has been confirmed " : "Your booking slot has been cancelled. If you have any questions or need clarification, please contact our team"}`.trim();
+            const subject = "Booking Status";
+            const content = `
+                Please use this Booking ID for future reference, 
+                <span style="color:tomato; font-size:25px; letter-spacing:2px;">
+                    ${booking.bookingId}
+                </span>. 
+                ${bookingStatus === "Confirmed"
+                    ? "Your booking slot has been confirmed."
+                    : "Your booking slot has been cancelled. If you have any questions or need clarification, please contact our team (Contact: 9095410019)."
+                }`.trim();
+
             await sendEmail(customer.email, subject, content);
+
             return res.status(200).json({
                 message: "Booking status is updated successfully",
                 booking: updateBooking
@@ -231,9 +270,11 @@ exports.updateUserBookings = async (req, res) => {
         }
 
     } catch (error) {
-        res.status(500).json({ message: "Error on updating user bookings", error: error.message });
+        console.error(error);
+        res.status(500).json({ message: "Error updating user bookings", error: error.message });
     }
 };
+
 
 
 

@@ -51,10 +51,13 @@ const bookingSchema = new mongoose.Schema({
         required: true
     },
     bookingId: {
-        type: Number
+        type: Number,
     },
     cost: {
         type: Number
+    },
+    document: {
+        type: [String]
     }
 }, {
     timestamps: true,
@@ -71,6 +74,6 @@ bookingSchema.pre('save', function (next) {
 });
 
 // Indexing to speed up date-based queries
-bookingSchema.index({ date: 1, "timeSlots.startTime": 1 });
+bookingSchema.index({ date: 1, "timeSlots.startTime": 1, bookingId: 1 });
 
 module.exports = mongoose.model("Booking", bookingSchema);

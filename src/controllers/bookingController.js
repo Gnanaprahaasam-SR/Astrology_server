@@ -167,7 +167,11 @@ exports.getAllUserBookings = async (req, res) => {
                     foreignField: 'bookingId',        // Field in ProductList
                     as: 'productList'                 // Output array field
                 }
-            },
+            }, {
+                $sort: {
+                    date: 1 // 1 for ascending order, -1 for descending
+                }
+            }
 
         ]);
         res.status(200).json(bookings);
